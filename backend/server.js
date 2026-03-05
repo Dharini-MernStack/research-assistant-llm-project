@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import uploadRoute from "./routes/upload.js";
 
 // Load environment variables
 dotenv.config();
@@ -10,6 +11,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use("/upload", uploadRoute);
 
 // Test route
 app.get("/", (req, res) => {
