@@ -1,45 +1,95 @@
-import express from "express";
-import multer from "multer";
-import fs from "fs";
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+const express = require("express");
+const multer = require("multer");
+const fs = require("fs");
+const PDFParser = require("pdf2json");
+const { askLLM } = require("../services/llm.js");
 
 const router = express.Router();
 
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
-  }
+    destination: (req, file, cb) => cb(null, "uploads/"),
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
 
 const upload = multer({ storage });
 
-router.post("/", upload.single("pdf"), async (req, res) => {
-  try {
-    const filePath = req.file.path;
-
-    const dataBuffer = fs.readFileSync(filePath);
-    const data = await pdfParse(dataBuffer);
-
-    const previewText = data.text.substring(0, 500);
-
-    console.log("Extracted Text Preview:");
-    console.log(previewText);
-
-    res.json({
-      message: "PDF processed successfully",
-      preview: previewText
+function extractTextFromPDF(filePath) {
+    return new Promise((resolve, reject) => {
+        const pdfParser = new PDFParser();
+        pdfParser.on("pdfParser_dataError", (err) => reject(err.parserError));
+        pdfParser.on("pdfParser_dataReady", (pdfData) => {
+            const text = pdfData.Pages.map(page =>
+                page.Texts.map(t => decodeURIComponent(t.R.map(r => r.T).join(""))).join(" ")
+            ).join("\n");
+            resolve(text);
+        });
+        pdfParser.loadPDF(filePath);
     });
+}
 
-  } catch (error) {
-    console.error("PDF processing error:", error);
-    res.status(500).json({ error: "PDF processing failed" });
-  }
+// Upload PDF and get initial summary
+router.post("/", upload.single("pdf"), async (req, res) => {
+    const filePath = req.file?.path;
+
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No file uploaded" });
+        }
+
+        console.log("STEP 1: File received:", req.file.originalname);
+        console.log("STEP 2: Reading file");
+
+        const text = await extractTextFromPDF(filePath);
+        console.log("STEP 3: PDF parsed");
+
+        const question = req.body.question || "Summarize this document.";
+        const limitedText = text.substring(0, 12000);
+
+        const answer = await askLLM(limitedText, question);
+        console.log("STEP 4: LLM responded");
+
+        res.json({
+            message: "Research complete",
+            filename: req.file.filename,  // return filename for future questions
+            answer,
+        });
+
+    } catch (error) {
+        console.error("Error:", error.message);
+        res.status(500).json({ error: "Processing failed" });
+    }
 });
 
-export default router;
+// Ask a question about an already uploaded PDF
+router.post("/ask", async (req, res) => {
+    const { filename, question } = req.body;
+
+    if (!filename || !question) {
+        return res.status(400).json({ error: "filename and question are required" });
+    }
+
+    const filePath = `uploads/${filename}`;
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "File not found" });
+    }
+
+    try {
+        console.log("STEP 1: Loading file:", filename);
+
+        const text = await extractTextFromPDF(filePath);
+        console.log("STEP 2: PDF parsed");
+
+        const limitedText = text.substring(0, 12000);
+        const answer = await askLLM(limitedText, question);
+        console.log("STEP 3: LLM responded");
+
+        res.json({ question, answer });
+
+    } catch (error) {
+        console.error("Error:", error.message);
+        res.status(500).json({ error: "Processing failed" });
+    }
+});
+
+module.exports = router;
