@@ -10,7 +10,7 @@ export default function UploadSection() {
   const [summary, setSummary] = useState("");
   const [error, setError] = useState("");
 
- const handleUpload = async () => {
+  const handleUpload = async () => {
     if (!file) return;
 
     setUploading(true);
@@ -22,25 +22,24 @@ export default function UploadSection() {
 
     try {
       const res = await axios.post(`https://research-assistant-backend-trsr.onrender.com/upload`, formData);
-      console.log("Response:", res.data); // ← ADD THIS
+      console.log("Response:", res.data);
       setUploadedFile(res.data.filename);
       setSummary(res.data.answer);
     } catch (err) {
-      console.error("Error:", err); // ← ADD THIS
+      console.error("Error:", err);
       setError("Upload failed. Make sure the backend is running.");
     } finally {
       setUploading(false);
     }
-};
+  };
 
   return (
     <div>
-      {/* Upload Card */}
-      {uploadedFile && (
+      {/* Upload Card — show when NO file uploaded yet */}
+      {!uploadedFile && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Upload PDF</h2>
 
-          {/* Drop Zone */}
           <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition">
             <span className="text-4xl mb-2">📄</span>
             <span className="text-gray-500 text-sm">
@@ -54,7 +53,6 @@ export default function UploadSection() {
             />
           </label>
 
-          {/* Upload Button */}
           <button
             onClick={handleUpload}
             disabled={!file || uploading}
@@ -67,10 +65,9 @@ export default function UploadSection() {
         </div>
       )}
 
-      {/* Summary + Chat */}
+      {/* Summary + Chat — show AFTER file uploaded */}
       {uploadedFile && (
         <div>
-          {/* Document Summary */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-gray-800">📄 {file.name}</h2>
@@ -84,7 +81,6 @@ export default function UploadSection() {
             <p className="text-gray-600 text-sm leading-relaxed">{summary}</p>
           </div>
 
-          {/* Chat */}
           <ChatSection filename={uploadedFile} />
         </div>
       )}
