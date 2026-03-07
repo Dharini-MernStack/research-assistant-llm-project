@@ -10,7 +10,7 @@ export default function UploadSection() {
   const [summary, setSummary] = useState("");
   const [error, setError] = useState("");
 
-  const handleUpload = async () => {
+ const handleUpload = async () => {
     if (!file) return;
 
     setUploading(true);
@@ -21,18 +21,22 @@ export default function UploadSection() {
     formData.append("question", "Summarize this document in 3 sentences.");
 
     try {
-const res = await axios.post(`https://research-assistant-backend-trsr.onrender.com/upload`, formData);      setSummary(res.data.answer);
+      const res = await axios.post(`https://research-assistant-backend-trsr.onrender.com/upload`, formData);
+      console.log("Response:", res.data); // ← ADD THIS
+      setUploadedFile(res.data.filename);
+      setSummary(res.data.answer);
     } catch (err) {
+      console.error("Error:", err); // ← ADD THIS
       setError("Upload failed. Make sure the backend is running.");
     } finally {
       setUploading(false);
     }
-  };
+};
 
   return (
     <div>
       {/* Upload Card */}
-      {!uploadedFile && (
+      {uploadedFile && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Upload PDF</h2>
 
