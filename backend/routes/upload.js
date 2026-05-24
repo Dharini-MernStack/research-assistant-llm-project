@@ -1,4 +1,3 @@
-
 const express = require("express");
 const multer = require("multer");
 const fs = require("fs");
@@ -18,22 +17,38 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Safely decode a single text run; fall back to raw text if it isn't valid URI encoding
+function safeDecode(str) {
+    try {
+        return decodeURIComponent(str);
+    } catch (e) {
+        return str;
+    }
+}
+
 function extractTextFromPDF(filePath) {
     return new Promise((resolve, reject) => {
         const pdfParser = new PDFParser();
         pdfParser.on("pdfParser_dataError", (err) => reject(err.parserError));
         pdfParser.on("pdfParser_dataReady", (pdfData) => {
-            const text = pdfData.Pages.map(page =>
-                page.Texts.map(t => decodeURIComponent(t.R.map(r => r.T).join(""))).join(" ")
-            ).join("\n");
+            try {
+                const text = pdfData.Pages.map(page =>
+                    page.Texts.map(t =>
+                        t.R.map(r => safeDecode(r.T)).join("")
+                    ).join(" ")
+                ).join("\n");
 
-            // Fix spaced out characters like "P y t h o n" → "Python"
-            const cleaned = text.replace(/(?<=\b\w) (?=\w\b)/g, "");
-            resolve(cleaned);
+                // Fix spaced out characters like "P y t h o n" → "Python"
+                const cleaned = text.replace(/(?<=\b\w) (?=\w\b)/g, "");
+                resolve(cleaned);
+            } catch (err) {
+                reject(err);
+            }
         });
         pdfParser.loadPDF(filePath);
     });
 }
+
 // Upload PDF and embed
 router.post("/", upload.single("pdf"), async (req, res) => {
     const filePath = req.file?.path;
@@ -114,4 +129,5 @@ router.post("/ask", async (req, res) => {
         res.status(500).json({ error: "Processing failed" });
     }
 });
+
 module.exports = router;
